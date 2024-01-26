@@ -17,11 +17,15 @@ import { beep } from '../../utils/audio'
 import * as cocossd from '@tensorflow-models/coco-ssd'
 import '@tensorflow/tfjs-backend-cpu'
 import '@tensorflow/tfjs-backend-webgl'
+import { drawOnCanvas } from '../../utils/draw';
 import { DetectedObject, ObjectDetection } from '@tensorflow-models/coco-ssd';
 
 //42:09
 
 type Props = {}
+
+let interval: any = null
+
 
 const HomePage = (props: Props) => {
   const webcamRef = useRef<Webcam>(null);
@@ -32,7 +36,7 @@ const HomePage = (props: Props) => {
 const [mirrored, setMirrored] = useState<boolean>(false);
 const [isRecording, setIsRecording] = useState<boolean>(false)
 const [autoRecordEnabled, setAutoRecordEnabled] = useState<boolean>(false)
-const [volume, setvolume] = useState(0.8)
+const [volume, setvolume] = useState(0.8);
 const [model, setModel] = useState<ObjectDetection>();
 const [loading, setLoading] = useState(false);
 
@@ -47,7 +51,7 @@ useEffect(() => {
 
 async function initModel(){
   const loadedModel: ObjectDetection = await cocossd.load({
-    base: 'lite_mobilenet_v2'
+    base: 'mobilenet_v2'
   });
   setModel(loadedModel);
 }
@@ -56,7 +60,17 @@ useEffect(()=>{
   if(model){
     setLoading(false);
   }
-}, [])
+}, [model])
+
+
+useEffect(()=>{
+  interval = setInterval(()=>{
+    runPrediction();
+  }, 1000)
+
+  return ()=> clearInterval(interval)
+},[webcamRef.current, model])
+
 
 
 
@@ -164,7 +178,7 @@ useEffect(()=>{
           </div>
         </div>
         {loading && <div className='z-50 absolute w-full h-full flex items-center justify-center bg-primary-foreground'>
-          Getting things ready . . . <Rings height={50} color='red' />
+          Firing up Vision AI . . . <Rings height={50} color='green' />
     </div>}
     </div>
   )
@@ -199,6 +213,21 @@ useEffect(()=>{
     }
   }
 
+  //prediction
+  async function runPrediction() {
+  if (
+    model
+    && webcamRef.current
+    && webcamRef.current.video
+    && webcamRef.current.video.readyState === 4
+  ) {
+    const predictions = await model.detect(webcamRef.current.video);
+
+    resizeCanvas(canvasRef, webcamRef);
+    drawOnCanvas(mirrored, predictions, canvasRef.current?.getContext('2d'))
+  }
+  }
+  
 
 
   // inner components
@@ -291,3 +320,15 @@ useEffect(()=>{
 }
 
 export default HomePage
+
+function resizeCanvas(canvasRef: React.RefObject<HTMLCanvasElement>, webcamRef: React.RefObject<Webcam>) {
+  const canvas = canvasRef.current;
+  const video = webcamRef.current?.video;
+
+
+if ((canvas && video)) {
+  const { videoWidth, videoHeight } = video;
+  canvas.width = videoWidth;
+  canvas.height = videoHeight;
+}
+}
